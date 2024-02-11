@@ -1,0 +1,63 @@
+variant: fcos
+version: "1.5.0"
+
+ignition:
+  config:
+    merge:
+      - local: ignition.base.json
+
+storage:
+  files:
+    - path: /etc/rancher/k3s/config.yaml.d/server.yaml
+      mode: 0644
+      contents:
+        inline: |
+          datastore-endpoint: "http://localhost:2379"
+          disable:
+            - servicelb
+            - traefik
+          write-kubeconfig-mode: "0644"
+
+    - path: /etc/systemd/system/install-k3s.service.env
+      mode: 0644
+      contents:
+        inline: |
+          INSTALL_K3S_TYPE=server
+
+    - path: /etc/systemd/system/etcd.service.env
+      mode: 0600
+      contents:
+        inline: |
+          ETCD_NAME={{node_name}}
+          ETCD_DATA_DIR=/var/lib/etcd
+          ETCD_LISTEN_PEER_URLS=http://{{fleet_address}}:2380
+          ETCD_LISTEN_CLIENT_URLS=http://localhost:2379
+          ETCD_INITIAL_ADVERTISE_PEER_URLS=http://{{fleet_address}}:2380
+          ETCD_INITIAL_CLUSTER={{etcd_cluster}}
+          ETCD_INITIAL_CLUSTER_STATE={{etcd_cluster_state}}
+          ETCD_ADVERTISE_CLIENT_URLS=http://{{fleet_address}}:2379
+
+systemd:
+  units:
+    - name: etcd.service
+      enabled: true
+      contents: |
+        [Unit]
+        Wants=network-online.target
+        After=network-online.target
+
+        [Install]
+        WantedBy=multi-user.target
+
+        [Service]
+        Restart=always
+        ExecStartPre=/usr/bin/mkdir -p /var/lib/etcd
+        ExecStartPre=/usr/bin/podman rm --force --ignore etcd
+        ExecStart=/usr/bin/podman run \
+            --env-file /etc/systemd/system/etcd.service.env \
+            --name etcd \
+            --network host \
+            --restart no \
+            --rm \
+            --volume /var/lib/etcd:/var/lib/etcd:z \
+            quay.io/coreos/etcd:v3.5.2

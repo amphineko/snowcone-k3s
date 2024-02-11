@@ -1,0 +1,20 @@
+etcd_cluster: "master1=http://10.41.0.1:2380,master2=http://10.41.0.2:2380,master3=http://10.41.0.3:2380"
+etcd_cluster_state: "new"
+
+fleet_address_mask: "24"
+fleet_interface: "enp2s0"
+fleet_master_vip: "10.41.0.1"
+
+hostname_prefix: "k3s-"
+
+k3s_token: "0123456789abcdef0123456789abcdef"
+
+libvirt_disk_base: "/mnt/images/fedora-coreos-39.20240112.3.0-qemu.x86_64.qcow2"
+libvirt_storage_base: "/mnt/vms"
+
+user:
+  name: "amphineko"
+  # https://docs.fedoraproject.org/en-US/fedora-coreos/authentication/#_using_password_authentication
+  # $ podman run -ti --rm quay.io/coreos/mkpasswd --method=yescrypt
+  password_hash: ""
+  ssh_authorized_key: ""

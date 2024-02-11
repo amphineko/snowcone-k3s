@@ -1,0 +1,21 @@
+variant: fcos
+version: "1.5.0"
+
+ignition:
+  config:
+    merge:
+      - local: ignition.base.json
+
+storage:
+  files:
+    - path: /etc/rancher/k3s/config.yaml.d/worker.yaml
+      mode: 0644
+      contents:
+        inline: |
+          server: https://{{fleet_master_vip}}:6443
+
+    - path: /etc/systemd/system/install-k3s.service.env
+      mode: 0644
+      contents:
+        inline: |
+          INSTALL_K3S_EXEC="agent"

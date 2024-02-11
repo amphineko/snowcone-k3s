@@ -1,0 +1,115 @@
+variant: fcos
+version: "1.5.0"
+
+storage:
+  disks:
+    - device: /dev/disk/by-id/coreos-boot-disk
+      wipe_table: false
+      partitions:
+        - label: root
+          number: 4
+          size_mib: 8192
+          resize: true
+        - label: var
+          size_mib: 0
+
+  filesystems:
+    - path: /var
+      device: /dev/disk/by-partlabel/var
+      format: btrfs
+      with_mount_unit: true
+
+  directories:
+    - path: /etc/rancher/k3s
+      mode: 0755
+
+    - path: /etc/rancher/k3s/config.yaml.d
+      mode: 0755
+
+    - path: /var/cache/rpm-ostree-install
+      mode: 0755
+
+  files:
+    - path: /etc/rancher/k3s/config.yaml
+      mode: 0600
+      contents:
+        inline: |
+          kubelet-arg: "volume-plugin-dir=/var/lib/kubelet/volume-plugins"
+          node-ip: "{{fleet_address}}"
+          node-name: "{{node_name}}"
+          with-node-id: true
+          token: "{{k3s_token}}"
+
+    - path: /etc/hostname
+      mode: 0644
+      contents:
+        inline: "{{hostname_prefix}}{{node_name}}"
+
+    - path: /etc/NetworkManager/system-connections/{{fleet_interface}}.nmconnection
+      mode: 0600
+      contents:
+        inline: |
+          [connection]
+          id={{fleet_interface}}
+          type=ethernet
+          interface-name={{fleet_interface}}
+          [ipv4]
+          address1={{fleet_address}}/{{fleet_address_mask}}
+          may-fail=false
+          method=manual
+
+systemd:
+  units:
+    - name: install-k3s.service
+      enabled: true
+      contents: |
+        [Unit]
+        ConditionPathExists=!/etc/systemd/system/k3s.service
+        ConditionPathExists=!/etc/systemd/system/k3s-agent.service
+        Wants=network-online.target
+        After=network-online.target
+
+        [Install]
+        WantedBy=multi-user.target
+
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/bin/curl -fsfL https://get.k3s.io -o /usr/local/bin/k3s-install.sh
+        ExecStart=/usr/bin/chmod +x /usr/local/bin/k3s-install.sh
+        EnvironmentFile=/etc/systemd/system/install-k3s.service.env
+        ExecStart=/usr/bin/flock /var/cache/rpm-ostree-install/.lock -c "/usr/local/bin/k3s-install.sh"
+        ExecStartPost=/usr/bin/systemctl reboot
+        RemainAfterExit=yes
+
+    - name: rpm-ostree-install@.service
+      enabled: true
+      contents: |
+        [Unit]
+        Description=Layer %i with rpm-ostree
+        Wants=network-online.target
+        After=network-online.target
+        Before=zincati.service
+        ConditionPathExists=!/var/cache/rpm-ostree-install/%i.stamp
+
+        [Install]
+        WantedBy=multi-user.target
+
+        [Service]
+        Type=oneshot
+        RemainAfterExit=yes
+        ExecStart=/usr/bin/flock /var/cache/rpm-ostree-install/.lock -c "/usr/bin/rpm-ostree install --idempotent --reboot %i && /usr/bin/touch /var/cache/rpm-ostree-install/%i.stamp"
+
+    - name: rpm-ostree-install@avahi.service
+      enabled: true
+
+    - name: rpm-ostree-install@qemu-guest-agent.service
+      enabled: true
+
+passwd:
+  users:
+    - name: "{{user.name}}"
+      groups:
+        - sudo
+      password_hash: "{{user.password_hash}}"
+      ssh_authorized_keys:
+        - "{{user.ssh_authorized_key}}"

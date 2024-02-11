@@ -1,0 +1,5 @@
+fleet_address: "10.41.0.1"
+
+libvirt_domain_uuid: "25090625-48ae-4a15-b0c0-4f01fe88e3e0"
+
+node_name: "master1"
